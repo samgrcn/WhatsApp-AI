@@ -15,6 +15,7 @@ package-lock.json
 
 # Message database
 data/
+!data/settings.json
 
 # Logs
 logs/
