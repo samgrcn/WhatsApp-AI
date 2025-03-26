@@ -10,58 +10,27 @@ An automated messaging system that responds to WhatsApp messages for Oompf! Fitn
 - Maintains conversation history for context-aware responses
 - Includes a web-based admin dashboard to monitor conversations
 
-## Quick Setup (User-Friendly)
+## Quick Setup
 
-### For Mac:
-- Simply double-click the `setup.command` file
-- A Terminal window will open and guide you through the installation
-
-### For Linux:
-- Right-click on the `install` file and select "Run as Program" or "Execute"
-- Or open a terminal and run:
-  ```bash
-  ./install
-  ```
-
-### For Windows:
-- Simply double-click `setup.bat`
-
-The installation scripts will:
-1. Check if Node.js is installed
-2. Install dependencies
-3. Create necessary data files
-4. Set up the environment file
-5. Prompt you for your DeepSeek API key
-6. Start the application if you choose
-
-## Manual Setup (Command Line)
-
-1. Install dependencies:
-   ```
-   npm install
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/samgrcn/WhatsApp-AI
+   cd WhatsApp-AI
    ```
 
-2. Create the data directory and initial messages file:
-   ```
-   mkdir -p data
-   echo "[]" > data/messages.json
-   ```
-
-3. Create a `.env` file based on `.env.example` and add your DeepSeek API key:
-   ```
-   cp .env.example .env
-   ```
-   Then edit the `.env` file and add your API key:
-   ```
-   DEEPSEEK_API_KEY=your_deepseek_api_key_here
+2. Run the setup script:
+   ```bash
+   sh setup.sh
    ```
 
-4. Run the application:
-   ```
-   npm start
-   ```
+   This script will:
+   - Check if Node.js is installed and install it if necessary.
+   - Install all dependencies.
+   - Create the necessary data files.
+   - Prompt you for your DeepSeek API key.
+   - Start the application.
 
-5. Scan the QR code that appears in the terminal with your WhatsApp mobile app:
+3. Scan the QR code that appears in the terminal with your WhatsApp mobile app:
    - Open WhatsApp on your phone
    - Tap Menu or Settings
    - Select WhatsApp Web
