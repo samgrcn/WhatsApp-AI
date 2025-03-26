@@ -119,269 +119,219 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Oompf! Fitness - WhatsApp Dashboard</title>
+      <title>Oompf! Fitness - Debug Dashboard</title>
       <style>
-        body { font-family: Arial, sans-serif; max-width: 1200px; margin: 0 auto; padding: 20px; }
-        h1 { color: #0a8d48; }
-        .conversation { margin-bottom: 20px; border: 1px solid #ddd; padding: 15px; border-radius: 5px; }
-        .message { margin: 10px 0; padding: 8px 15px; border-radius: 15px; max-width: 80%; }
-        .user { background-color: #e6f7ff; margin-left: auto; text-align: right; }
-        .assistant { background-color: #f0f0f0; }
-        .phone-list { margin-bottom: 20px; }
-        .phone-number { cursor: pointer; color: #0066cc; margin-right: 10px; padding: 5px; }
-        .phone-number:hover { text-decoration: underline; }
-        .active { font-weight: bold; background-color: #e6f7ff; border-radius: 5px; }
-        .tabs { display: flex; margin-bottom: 20px; }
-        .tab { cursor: pointer; padding: 10px 20px; background-color: #f0f0f0; margin-right: 5px; border-radius: 5px 5px 0 0; }
-        .tab.active { background-color: #e6f7ff; font-weight: bold; }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        #prompt-editor { width: 100%; height: 300px; padding: 10px; margin-bottom: 10px; font-family: monospace; }
-        .button { padding: 10px 20px; background-color: #0a8d48; color: white; border: none; border-radius: 5px; cursor: pointer; }
-        .notification { padding: 10px; margin: 10px 0; border-radius: 5px; display: none; }
-        .success { background-color: #d4edda; color: #155724; }
-        .error { background-color: #f8d7da; color: #721c24; }
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .button { 
+          display: inline-block;
+          padding: 10px 20px; 
+          margin: 5px;
+          background-color: #f8f8f8; 
+          border: 1px solid #ccc;
+          cursor: pointer;
+        }
+        .button.active {
+          background-color: #e6f7ff;
+          font-weight: bold;
+        }
+        #content {
+          margin-top: 20px;
+          padding: 20px;
+          border: 1px solid #ccc;
+        }
+        #prompt-area {
+          width: 100%;
+          height: 200px;
+          margin: 10px 0;
+        }
+        #save-btn {
+          background-color: #4CAF50;
+          color: white;
+          padding: 10px 20px;
+          border: none;
+          cursor: pointer;
+        }
       </style>
     </head>
-    <body onload="initializeDashboard()">
-      <h1>Oompf! Fitness - WhatsApp Admin Dashboard</h1>
+    <body>
+      <h1>WhatsApp Admin - Debug Mode</h1>
       
-      <div class="tabs">
-        <div class="tab active" id="tab-conversations" onclick="switchTab('conversations')">Conversations</div>
-        <div class="tab" id="tab-settings" onclick="switchTab('settings')">Settings</div>
+      <div>
+        <span class="button active" id="btn-conversations" onclick="showConversations()">Conversations</span>
+        <span class="button" id="btn-settings" onclick="showSettings()">Settings</span>
       </div>
       
-      <div id="conversations-tab" class="tab-content active">
-        <div id="phone-list" class="phone-list">Loading phone numbers...</div>
-        <div id="conversation-container"></div>
-      </div>
-      
-      <div id="settings-tab" class="tab-content">
-        <h2>System Prompt Settings</h2>
-        <p>Customize the system prompt that determines how the AI assistant responds to users.</p>
-        <textarea id="prompt-editor"></textarea>
-        <div>
-          <button class="button" onclick="savePrompt()">Save Prompt</button>
-          <button class="button" onclick="resetPrompt()" style="background-color: #6c757d;">Reset to Default</button>
+      <div id="content">
+        <div id="conversations-view">
+          <p>Conversations will appear here.</p>
+          <div id="phone-list" class="phone-list">Loading phone numbers...</div>
+          <div id="conversation-container"></div>
         </div>
-        <div id="notification" class="notification"></div>
+        
+        <div id="settings-view" style="display:none;">
+          <h2>System Prompt</h2>
+          <textarea id="prompt-area"></textarea>
+          <div>
+            <button id="save-btn" onclick="savePromptSimple()">Save Prompt</button>
+          </div>
+          <div id="result"></div>
+        </div>
       </div>
 
       <script>
-        // Initialize dashboard
-        function initializeDashboard() {
-          // Initially load phone numbers
-          fetchPhoneNumbers();
-          
-          // Add event listeners for tab buttons explicitly
-          document.getElementById('tab-conversations').addEventListener('click', function() {
-            switchTab('conversations');
-          });
-          
-          document.getElementById('tab-settings').addEventListener('click', function() {
-            switchTab('settings');
-          });
-          
-          // Set up refresh interval
-          setInterval(fetchPhoneNumbers, 30000);
-        }
+      // Simple functions to test basic functionality
+      function showConversations() {
+        // alert('Conversations tab clicked');
+        document.getElementById('conversations-view').style.display = 'block';
+        document.getElementById('settings-view').style.display = 'none';
+        document.getElementById('btn-conversations').classList.add('active');
+        document.getElementById('btn-settings').classList.remove('active');
         
-        // Tab switching functionality
-        function switchTab(tabName) {
-          console.log('Switching to tab:', tabName);
-          
-          // Hide all tab contents
-          document.querySelectorAll('.tab-content').forEach(tab => {
-            tab.classList.remove('active');
-            tab.style.display = 'none';
-          });
-          
-          // Show selected tab content
-          const tabContent = document.getElementById(tabName + '-tab');
-          tabContent.classList.add('active');
-          tabContent.style.display = 'block';
-          
-          // Update tab styling
-          document.querySelectorAll('.tab').forEach(tab => {
-            tab.classList.remove('active');
-          });
-          
-          document.getElementById('tab-' + tabName).classList.add('active');
-          
-          // Load prompt data when switching to settings tab
-          if (tabName === 'settings') {
-            loadPrompt();
-          }
-        }
+        // Load conversations when switching to this tab
+        fetchPhoneNumbers();
+      }
+      
+      function showSettings() {
+        // alert('Settings tab clicked');
+        document.getElementById('conversations-view').style.display = 'none';
+        document.getElementById('settings-view').style.display = 'block';
+        document.getElementById('btn-conversations').classList.remove('active');
+        document.getElementById('btn-settings').classList.add('active');
         
-        // Fetch all messages and extract unique phone numbers
-        async function fetchPhoneNumbers() {
-          try {
-            const response = await fetch('/api/messages');
-            if (!response.ok) {
-              throw new Error('Failed to fetch messages: ' + response.statusText);
-            }
-            
-            const messages = await response.json();
+        // Load prompt
+        fetch('/api/prompt')
+          .then(response => response.json())
+          .then(data => {
+            document.getElementById('prompt-area').value = data.prompt;
+          })
+          .catch(error => {
+            alert('Error loading prompt: ' + error.message);
+          });
+      }
+      
+      // Fetch all messages and extract unique phone numbers
+      function fetchPhoneNumbers() {
+        fetch('/api/messages')
+          .then(response => response.json())
+          .then(messages => {
+            console.log('Fetched messages:', messages.length);
             
             // Get unique phone numbers
             const phoneNumbers = [...new Set(messages.map(msg => msg.phoneNumber))];
+            console.log('Unique phone numbers:', phoneNumbers);
             
             // Display phone number list
             const phoneListEl = document.getElementById('phone-list');
-            phoneListEl.innerHTML = '<strong>Select a conversation:</strong> ';
-            
-            phoneNumbers.forEach(phone => {
-              const phoneEl = document.createElement('span');
-              phoneEl.className = 'phone-number';
-              phoneEl.textContent = phone;
-              phoneEl.addEventListener('click', function() { 
-                loadConversation(phone); 
-              });
-              phoneListEl.appendChild(phoneEl);
-            });
-            
-            // Load first conversation if available
             if (phoneNumbers.length > 0) {
+              phoneListEl.innerHTML = '<strong>Select a conversation:</strong> ';
+              
+              phoneNumbers.forEach(phone => {
+                const phoneEl = document.createElement('span');
+                phoneEl.className = 'phone-number';
+                phoneEl.textContent = phone;
+                phoneEl.style.margin = '0 10px';
+                phoneEl.style.padding = '5px';
+                phoneEl.style.cursor = 'pointer';
+                phoneEl.style.backgroundColor = '#f0f0f0';
+                phoneEl.style.borderRadius = '3px';
+                phoneEl.onclick = function() { loadConversation(phone); };
+                phoneListEl.appendChild(phoneEl);
+              });
+              
+              // Load first conversation
               loadConversation(phoneNumbers[0]);
             } else {
-              document.getElementById('conversation-container').innerHTML = 
-                '<p>No conversations available yet.</p>';
+              phoneListEl.innerHTML = '<p>No conversations available yet.</p>';
             }
-          } catch (error) {
+          })
+          .catch(error => {
             console.error('Error fetching phone numbers:', error);
             document.getElementById('phone-list').innerHTML = 
               '<strong>Error loading conversations:</strong> ' + error.message;
-          }
-        }
+          });
+      }
+      
+      // Load conversation for a specific phone number
+      function loadConversation(phoneNumber) {
+        console.log('Loading conversation for:', phoneNumber);
         
-        // Load conversation for a specific phone number
-        async function loadConversation(phoneNumber) {
-          try {
-            // Update active phone number
-            document.querySelectorAll('.phone-number').forEach(function(el) {
-              el.classList.remove('active');
-              if (el.textContent === phoneNumber) {
-                el.classList.add('active');
-              }
-            });
-            
-            const response = await fetch('/api/messages/' + encodeURIComponent(phoneNumber));
-            if (!response.ok) {
-              throw new Error('Failed to fetch conversation: ' + response.statusText);
-            }
-            
-            const messages = await response.json();
+        // Update active phone number highlighting
+        document.querySelectorAll('.phone-number').forEach(el => {
+          if (el.textContent === phoneNumber) {
+            el.style.fontWeight = 'bold';
+            el.style.backgroundColor = '#e6f7ff';
+          } else {
+            el.style.fontWeight = 'normal';
+            el.style.backgroundColor = '#f0f0f0';
+          }
+        });
+        
+        fetch('/api/messages/' + encodeURIComponent(phoneNumber))
+          .then(response => response.json())
+          .then(messages => {
+            console.log('Fetched messages for conversation:', messages.length);
             
             const container = document.getElementById('conversation-container');
-            container.innerHTML = '<h2>Conversation with ' + phoneNumber + '</h2>' +
-                                 '<div id="messages" class="conversation"></div>';
+            container.innerHTML = '<h3>Conversation with ' + phoneNumber + '</h3>';
             
-            const messagesEl = document.getElementById('messages');
+            const chatDiv = document.createElement('div');
+            chatDiv.style.maxHeight = '400px';
+            chatDiv.style.overflowY = 'auto';
+            chatDiv.style.border = '1px solid #ccc';
+            chatDiv.style.padding = '10px';
+            chatDiv.style.marginTop = '10px';
             
-            messages.forEach(function(msg) {
-              const messageEl = document.createElement('div');
-              messageEl.className = 'message ' + (msg.isFromUser ? 'user' : 'assistant');
+            messages.forEach(msg => {
+              const msgDiv = document.createElement('div');
+              msgDiv.style.margin = '10px 0';
+              msgDiv.style.padding = '8px 15px';
+              msgDiv.style.borderRadius = '10px';
+              msgDiv.style.maxWidth = '80%';
+              
+              if (msg.isFromUser) {
+                msgDiv.style.marginLeft = 'auto';
+                msgDiv.style.backgroundColor = '#e6f7ff';
+                msgDiv.style.textAlign = 'right';
+              } else {
+                msgDiv.style.backgroundColor = '#f0f0f0';
+              }
               
               const time = new Date(msg.timestamp).toLocaleString();
-              messageEl.innerHTML = '<div>' + msg.message + '</div>' +
-                                   '<small>' + time + '</small>';
+              msgDiv.innerHTML = '<div>' + msg.message + '</div>' +
+                               '<small style="color:#888">' + time + '</small>';
               
-              messagesEl.appendChild(messageEl);
+              chatDiv.appendChild(msgDiv);
             });
-          } catch (error) {
+            
+            container.appendChild(chatDiv);
+          })
+          .catch(error => {
             console.error('Error loading conversation:', error);
             document.getElementById('conversation-container').innerHTML = 
               '<p>Error loading conversation: ' + error.message + '</p>';
-          }
-        }
+          });
+      }
+      
+      function savePromptSimple() {
+        const promptText = document.getElementById('prompt-area').value;
+        alert('About to save prompt: ' + promptText.substring(0, 20) + '...');
         
-        // Load the current system prompt
-        async function loadPrompt() {
-          try {
-            const response = await fetch('/api/prompt');
-            if (!response.ok) {
-              throw new Error('Failed to fetch prompt: ' + response.statusText);
-            }
-            
-            const data = await response.json();
-            document.getElementById('prompt-editor').value = data.prompt;
-          } catch (error) {
-            console.error('Error loading prompt:', error);
-            showNotification('Error loading prompt: ' + error.message, 'error');
-          }
-        }
-        
-        // Save the system prompt
-        async function savePrompt() {
-          try {
-            const prompt = document.getElementById('prompt-editor').value;
-            const response = await fetch('/api/prompt', {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({ prompt })
-            });
-            
-            if (!response.ok) {
-              throw new Error('Failed to save prompt: ' + response.statusText);
-            }
-            
-            const data = await response.json();
-            if (data.success) {
-              showNotification('Prompt saved successfully!', 'success');
-            } else {
-              showNotification('Error: ' + data.error, 'error');
-            }
-          } catch (error) {
-            console.error('Error saving prompt:', error);
-            showNotification('Error saving prompt: ' + error.message, 'error');
-          }
-        }
-        
-        // Reset prompt to default
-        async function resetPrompt() {
-          if (confirm('Are you sure you want to reset the prompt to default?')) {
-            try {
-              const response = await fetch('/api/prompt', {
-                method: 'POST',
-                headers: {
-                  'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({ prompt: '${DEFAULT_SYSTEM_PROMPT.replace(/`/g, '\\`').replace(/\$/g, '\\$')}' })
-              });
-              
-              if (!response.ok) {
-                throw new Error('Failed to reset prompt: ' + response.statusText);
-              }
-              
-              const data = await response.json();
-              if (data.success) {
-                document.getElementById('prompt-editor').value = '${DEFAULT_SYSTEM_PROMPT.replace(/`/g, '\\`').replace(/\$/g, '\\$')}';
-                showNotification('Prompt reset to default!', 'success');
-              } else {
-                showNotification('Error: ' + (data.error || 'Unknown error'), 'error');
-              }
-            } catch (error) {
-              console.error('Error resetting prompt:', error);
-              showNotification('Error resetting prompt: ' + error.message, 'error');
-            }
-          }
-        }
-        
-        // Show notification
-        function showNotification(message, type) {
-          const notification = document.getElementById('notification');
-          notification.textContent = message;
-          notification.className = 'notification ' + type;
-          notification.style.display = 'block';
-          
-          // Auto-hide after 5 seconds
-          setTimeout(() => {
-            notification.style.display = 'none';
-          }, 5000);
-        }
+        fetch('/api/prompt', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: promptText })
+        })
+          .then(response => response.json())
+          .then(data => {
+            document.getElementById('result').textContent = 'Saved successfully!';
+            setTimeout(() => {
+              document.getElementById('result').textContent = '';
+            }, 3000);
+          })
+          .catch(error => {
+            alert('Error saving: ' + error.message);
+          });
+      }
       </script>
     </body>
     </html>
