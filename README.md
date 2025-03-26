@@ -12,35 +12,42 @@ An automated messaging system that responds to WhatsApp messages for a gym busin
 
 ## Setup
 
-1. Install dependencies:
+1. In your Terminal, clone the repo:
+   ```
+   git clone https://github.com/samgrcn/WhatsApp-AI
+   cd WhatsApp-AI
+   ```
+
+2. Install dependencies:
    ```
    npm install
    ```
 
-2. Copy the `.env.example` file and name it `.env`:
+3. Copy the `.env.example` file and name it `.env`:
    ```
    cp .env.example .env
    ```
 
-3. Edit the `.env` file to add you DeepSeek API key:
+4. Edit the `.env` file to add you DeepSeek API key:
+   - Linux/macOS:
+      ```
+      nano .env
+      ```
+   - Windows:
+      ```
+      notepad .env
+      ``` 
    ```
+   # Replace `your_deepseek_api_key_here` by your DeepSeek API key
    DEEPSEEK_API_KEY=your_deepseek_api_key_here
    ```
-   - Linux/macOS:
-   ```
-   nano .env
-   ```
-   - Windows:
-   ```
-   notepad .env
-   ``` 
 
-4. Run the application:
+5. Run the application:
    ```
    npm start
    ```
 
-5. Scan the QR code that appears in the terminal with your WhatsApp mobile app:
+6. Scan the QR code that appears in the terminal with your WhatsApp mobile app:
    - Open WhatsApp on your phone
    - Tap Menu or Settings
    - Select WhatsApp Web
