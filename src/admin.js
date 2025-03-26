@@ -6,8 +6,33 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 
+// Import the ensureDataDir function from messageDb
+const { addMessage, getConversationHistory } = require('./messageDb');
+
+// Initialize data directory and file at startup
+async function initializeDataStructure() {
+  try {
+    // Create data directory if it doesn't exist
+    await fs.mkdir(DATA_DIR, { recursive: true });
+    
+    // Check if messages.json exists, if not create it with empty array
+    try {
+      await fs.access(MESSAGES_FILE);
+    } catch (error) {
+      // File doesn't exist, create it with empty array
+      await fs.writeFile(MESSAGES_FILE, '[]', 'utf8');
+      console.log('Created empty messages.json file for admin dashboard');
+    }
+  } catch (error) {
+    console.error('Error setting up data directory:', error);
+  }
+}
+
 function setupAdminDashboard(port = process.env.PORT || 3000) {
   const app = express();
+  
+  // Initialize data structures immediately
+  initializeDataStructure();
   
   // Set up middleware
   app.use(express.json());
@@ -19,6 +44,7 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
   // View all messages
   app.get('/api/messages', async (req, res) => {
     try {
+      await initializeDataStructure(); // Ensure directory and file exist
       const data = await fs.readFile(MESSAGES_FILE, 'utf8');
       const messages = JSON.parse(data);
       
@@ -32,6 +58,7 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
   // Get messages by phone number
   app.get('/api/messages/:phoneNumber', async (req, res) => {
     try {
+      await initializeDataStructure(); // Ensure directory and file exist
       const data = await fs.readFile(MESSAGES_FILE, 'utf8');
       const messages = JSON.parse(data);
       
