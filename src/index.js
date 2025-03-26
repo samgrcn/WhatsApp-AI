@@ -4,6 +4,7 @@ const qrcode = require('qrcode-terminal');
 const axios = require('axios');
 const { addMessage, getConversationHistory } = require('./messageDb');
 const { setupAdminDashboard } = require('./admin');
+const { getSystemPrompt } = require('./config');
 
 // Initialize WhatsApp client
 const client = new Client({
@@ -57,33 +58,14 @@ async function getAIResponse(userMessage, phoneNumber) {
     // Get conversation history
     const history = await getConversationHistory(phoneNumber, 5);
     
+    // Get the system prompt from config
+    const systemPrompt = await getSystemPrompt();
+    
     // Create messages array for the API with conversation history
     const messages = [
       {
         role: 'system',
-        content: `You are a human assistant at Oompf! Fitness. Help users with booking fitness consultations and answer questions about gym services, membership, classes, and fitness advice. 
-        
-        KEY GYM INFORMATION:
-        - Gym Name: Oompf! Fitness
-        - Locations: 
-          * East Coast: 130 East Coast Road S428815 (Weekdays: 6:00am-10:30pm, Weekends: 7:00am-7:00pm)
-          * Bukit Timah: 805 Bukit Timah Road #01-02 S279883 (Weekdays: 6:30am-10:00pm, Weekends: 7:00am-7:00pm)
-        - Services: 
-          * Personal Training (for women, couples, seniors, pregnancy, postpartum, prenatal, bridal)
-          * HIIT group classes
-          * Fitness consultations
-          * Strength training
-          * Weight loss programs
-          * Bodybuilding preparation
-          * Running training
-          * Sports-specific training
-        - Facilities:
-          * Fully equipped gym with modern equipment
-          * Cardio area with treadmill, rowing machine, stepper and assault bike
-          * Locker rooms with showers (towels, shampoo, and hair dryers provided)
-        - Pricing: Personal training ranges from $95 to $135 per hour depending on timing
-        - Contact: Tel/WhatsApp: +65 8878 5659, Email: oompfpt@gmail.com`
-        
+        content: systemPrompt
       }
     ];
     
