@@ -38,7 +38,6 @@ An automated messaging system that responds to WhatsApp messages for a gym busin
       notepad .env
       ``` 
    ```
-   # Replace `your_deepseek_api_key_here` by your DeepSeek API key
    DEEPSEEK_API_KEY=your_deepseek_api_key_here
    ```
 

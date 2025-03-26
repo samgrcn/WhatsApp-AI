@@ -8,9 +8,19 @@ const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 // Ensure the data directory exists
 async function ensureDataDir() {
   try {
+    // Create data directory if it doesn't exist
     await fs.mkdir(DATA_DIR, { recursive: true });
+    
+    // Check if messages.json exists, if not create it with empty array
+    try {
+      await fs.access(MESSAGES_FILE);
+    } catch (error) {
+      // File doesn't exist, create it with empty array
+      await fs.writeFile(MESSAGES_FILE, '[]', 'utf8');
+      console.log('Created empty messages.json file');
+    }
   } catch (error) {
-    console.error('Error creating data directory:', error);
+    console.error('Error setting up data directory:', error);
   }
 }
 
