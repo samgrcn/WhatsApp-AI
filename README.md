@@ -17,17 +17,30 @@ An automated messaging system that responds to WhatsApp messages for a gym busin
    npm install
    ```
 
-2. Create a `.env` file based on `.env.example` and add your DeepSeek API key:
+2. Copy the `.env.example` file and name it `.env`:
+   ```
+   cp .env.example .env
+   ```
+
+3. Edit the `.env` file to add you DeepSeek API key:
    ```
    DEEPSEEK_API_KEY=your_deepseek_api_key_here
    ```
+   - Linux/macOS:
+   ```
+   nano .env
+   ```
+   - Windows:
+   ```
+   notepad .env
+   ``` 
 
-3. Run the application:
+4. Run the application:
    ```
    npm start
    ```
 
-4. Scan the QR code that appears in the terminal with your WhatsApp mobile app:
+5. Scan the QR code that appears in the terminal with your WhatsApp mobile app:
    - Open WhatsApp on your phone
    - Tap Menu or Settings
    - Select WhatsApp Web
@@ -50,9 +63,7 @@ http://localhost:3000
 
 You can customize the gym information by modifying the system prompt in the `getAIResponse` function in `src/index.js`.
 
-## Adding More Features
-
-To enhance the application, consider adding:
+## Will be added in the near future...
 
 1. Database integration (MongoDB, PostgreSQL) for better message storage
 2. Human takeover functionality for complex inquiries
