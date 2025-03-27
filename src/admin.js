@@ -1,10 +1,13 @@
 const express = require('express');
 const fs = require('fs').promises;
 const path = require('path');
+const session = require('express-session');
+const bcrypt = require('bcryptjs');
 
-// Path to the messages file
+// Path to the data files
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
+const ADMIN_FILE = path.join(DATA_DIR, 'admin.json');
 
 // Import the message functions and config functions
 const { addMessage, getConversationHistory } = require('./messageDb');
@@ -13,20 +16,43 @@ const { getSystemPrompt, updateSystemPrompt, DEFAULT_SYSTEM_PROMPT } = require('
 // Initialize data directory and file at startup
 async function initializeDataStructure() {
   try {
-    // Create data directory if it doesn't exist
     await fs.mkdir(DATA_DIR, { recursive: true });
     
-    // Check if messages.json exists, if not create it with empty array
+    // Check if messages.json exists, if not create it
     try {
       await fs.access(MESSAGES_FILE);
     } catch (error) {
-      // File doesn't exist, create it with empty array
       await fs.writeFile(MESSAGES_FILE, '[]', 'utf8');
       console.log('Created empty messages.json file for admin dashboard');
+    }
+    
+    // Check if admin.json exists, if not create it
+    try {
+      await fs.access(ADMIN_FILE);
+    } catch (error) {
+      const defaultAdmin = {
+        username: 'admin',
+        password: '$2a$10$XQxBtqxWxP5VFN5YGXEz8.d.RYheskpF6xUe.IhbZZEBZKyGNF.Hy' // Default password: admin123
+      };
+      await fs.writeFile(ADMIN_FILE, JSON.stringify(defaultAdmin, null, 2), 'utf8');
+      console.log('Created admin.json with default credentials');
     }
   } catch (error) {
     console.error('Error setting up data directory:', error);
   }
+}
+
+// Authentication middleware
+async function requireAuth(req, res, next) {
+  if (req.session && req.session.authenticated) {
+    return next();
+  }
+  // If it's an API request, return 401
+  if (req.path.startsWith('/api/')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+  // Otherwise redirect to login page
+  res.redirect('/login');
 }
 
 function setupAdminDashboard(port = process.env.PORT || 3000) {
@@ -38,20 +64,172 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
   // Set up middleware
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
+  app.use(session({
+    secret: process.env.SESSION_SECRET || 'your-secret-key',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  }));
   
-  // Serve static files
-  app.use(express.static(path.join(__dirname, 'public')));
+  // Login page
+  app.get('/login', (req, res) => {
+    const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>WhatsApp Bot - Login</title>
+      <style>
+        :root {
+          --primary-color: #00a884;
+          --secondary-color: #f0f2f5;
+          --text-color: #111b21;
+          --light-text: #667781;
+          --border-color: #e9edef;
+        }
+        
+        body {
+          font-family: Segoe UI, Helvetica Neue, Helvetica, Lucida Grande, Arial, Ubuntu, Cantarell, Fira Sans, sans-serif;
+          margin: 0;
+          padding: 0;
+          background: var(--secondary-color);
+          color: var(--text-color);
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          min-height: 100vh;
+        }
+        
+        .login-container {
+          background: white;
+          padding: 2rem;
+          border-radius: 8px;
+          box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+          width: 100%;
+          max-width: 400px;
+        }
+        
+        .header {
+          text-align: center;
+          margin-bottom: 2rem;
+        }
+        
+        .header h1 {
+          color: var(--primary-color);
+          font-size: 1.5rem;
+          margin: 0;
+        }
+        
+        .form-group {
+          margin-bottom: 1rem;
+        }
+        
+        label {
+          display: block;
+          margin-bottom: 0.5rem;
+          color: var(--light-text);
+        }
+        
+        input {
+          width: 100%;
+          padding: 0.75rem;
+          border: 1px solid var(--border-color);
+          border-radius: 4px;
+          font-size: 1rem;
+          box-sizing: border-box;
+        }
+        
+        input:focus {
+          outline: none;
+          border-color: var(--primary-color);
+        }
+        
+        button {
+          width: 100%;
+          padding: 0.75rem;
+          background: var(--primary-color);
+          color: white;
+          border: none;
+          border-radius: 4px;
+          font-size: 1rem;
+          cursor: pointer;
+          margin-top: 1rem;
+        }
+        
+        button:hover {
+          opacity: 0.9;
+        }
+        
+        .error {
+          color: #dc3545;
+          font-size: 0.875rem;
+          margin-top: 0.5rem;
+          text-align: center;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="login-container">
+        <div class="header">
+          <h1>WhatsApp Bot Admin</h1>
+        </div>
+        <form action="/login" method="POST">
+          <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" required>
+          </div>
+          <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" required>
+          </div>
+          ${req.query.error ? '<div class="error">Invalid username or password</div>' : ''}
+          <button type="submit">Login</button>
+        </form>
+      </div>
+    </body>
+    </html>
+    `;
+    res.send(html);
+  });
   
-  // View all messages
+  // Login handler
+  app.post('/login', async (req, res) => {
+    try {
+      const { username, password } = req.body;
+      const adminData = JSON.parse(await fs.readFile(ADMIN_FILE, 'utf8'));
+      
+      if (username === adminData.username && await bcrypt.compare(password, adminData.password)) {
+        req.session.authenticated = true;
+        req.session.username = username;
+        res.redirect('/');
+      } else {
+        res.redirect('/login?error=1');
+      }
+    } catch (error) {
+      console.error('Login error:', error);
+      res.redirect('/login?error=1');
+    }
+  });
+  
+  // Logout handler
+  app.get('/logout', (req, res) => {
+    req.session.destroy();
+    res.redirect('/login');
+  });
+  
+  // Protect all other routes
+  app.use(requireAuth);
+  
+  // API routes
   app.get('/api/messages', async (req, res) => {
     try {
-      await initializeDataStructure(); // Ensure directory and file exist
       const data = await fs.readFile(MESSAGES_FILE, 'utf8');
       const messages = JSON.parse(data);
-      
-      // Log the number of messages found for debugging
-      console.log(`GET /api/messages: Returned ${messages.length} messages`);
-      
       res.json(messages);
     } catch (error) {
       console.error('Error reading messages:', error);
@@ -59,20 +237,15 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
     }
   });
   
-  // Get messages by phone number
   app.get('/api/messages/:phoneNumber', async (req, res) => {
     try {
-      await initializeDataStructure(); // Ensure directory and file exist
       const data = await fs.readFile(MESSAGES_FILE, 'utf8');
       const messages = JSON.parse(data);
       
       const phoneNumber = req.params.phoneNumber;
-      const phoneMessages = messages.filter(
-        msg => msg.phoneNumber === phoneNumber
-      ).sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      
-      // Log the number of messages found for debugging
-      console.log(`GET /api/messages/${phoneNumber}: Returned ${phoneMessages.length} messages`);
+      const phoneMessages = messages
+        .filter(msg => msg.phoneNumber === phoneNumber)
+        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
       
       res.json(phoneMessages);
     } catch (error) {
@@ -81,37 +254,26 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
     }
   });
   
-  // Get current system prompt
   app.get('/api/prompt', async (req, res) => {
     try {
       const prompt = await getSystemPrompt();
-      console.log('GET /api/prompt: Returned system prompt');
       res.json({ prompt });
     } catch (error) {
-      console.error('Error getting system prompt:', error);
-      res.status(500).json({ error: 'Failed to get system prompt' });
+      res.status(500).json({ error: 'Failed to read prompt' });
     }
   });
   
-  // Update system prompt
   app.post('/api/prompt', async (req, res) => {
     try {
       const { prompt } = req.body;
-      if (!prompt) {
-        console.error('POST /api/prompt: Missing prompt in request body');
-        return res.status(400).json({ error: 'Prompt is required' });
-      }
-      
       await updateSystemPrompt(prompt);
-      console.log('POST /api/prompt: Successfully updated system prompt');
-      res.json({ success: true, message: 'Prompt updated successfully' });
+      res.json({ success: true });
     } catch (error) {
-      console.error('Error updating system prompt:', error);
-      res.status(500).json({ error: 'Failed to update system prompt' });
+      res.status(500).json({ error: 'Failed to update prompt' });
     }
   });
   
-  // Create HTML for admin dashboard
+  // Main dashboard page
   app.get('/', async (req, res) => {
     const html = `
     <!DOCTYPE html>
@@ -349,11 +511,35 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
           height: 4px;
           background: white;
         }
+        
+        .user-info {
+          margin-left: auto;
+          display: flex;
+          align-items: center;
+          gap: 1rem;
+          color: white;
+        }
+        
+        .logout-btn {
+          color: rgba(255, 255, 255, 0.8);
+          text-decoration: none;
+          padding: 0.5rem 1rem;
+          border-radius: 4px;
+          transition: background-color 0.2s;
+        }
+        
+        .logout-btn:hover {
+          background-color: rgba(255, 255, 255, 0.1);
+        }
       </style>
     </head>
     <body>
       <div class="header">
         <h1>WhatsApp Bot - Admin Dashboard</h1>
+        <div class="user-info">
+          <span>Welcome, ${req.session.username}</span>
+          <a href="/logout" class="logout-btn">Logout</a>
+        </div>
       </div>
       
       <div class="tabs">
