@@ -5,62 +5,25 @@ const path = require('path');
 const DATA_DIR = path.join(__dirname, '..', 'data');
 const CONFIG_FILE = path.join(DATA_DIR, 'settings.json');
 
-// Fallback default system prompt (only used if settings.json doesn't exist)
-const FALLBACK_PROMPT = `You are a helpful fitness assistant for Oompf! Fitness. 
-Your role is to assist clients with fitness-related questions, provide workout guidance, 
-and help schedule training sessions. You should be friendly, encouraging, and professional.
-
-Please provide information about:
-- Available classes and schedules
-- Personal training options
-- Fitness tips and recommendations
-- Nutrition advice
-- Membership information
-
-If asked about something outside of fitness or Oompf! services, politely redirect the conversation
-back to fitness-related topics.`;
-
 // Initialize a variable to hold the current default prompt
-let DEFAULT_SYSTEM_PROMPT = FALLBACK_PROMPT;
+let DEFAULT_SYSTEM_PROMPT = '';
 
-// Ensure the data directory and config file exist
-async function ensureConfigFile() {
+// Load system prompt from settings.json at startup
+async function initializePrompt() {
   try {
-    // Create data directory if it doesn't exist
-    await fs.mkdir(DATA_DIR, { recursive: true });
-    
-    // Check if settings.json exists, if not create it with default values
-    try {
-      await fs.access(CONFIG_FILE);
-      
-      // If file exists, read it and update DEFAULT_SYSTEM_PROMPT
-      try {
-        const data = await fs.readFile(CONFIG_FILE, 'utf8');
-        const config = JSON.parse(data);
-        if (config.systemPrompt) {
-          DEFAULT_SYSTEM_PROMPT = config.systemPrompt;
-          console.log('Loaded system prompt from settings.json');
-        }
-      } catch (error) {
-        console.error('Error reading settings.json:', error);
-      }
-      
-    } catch (error) {
-      // File doesn't exist, create it with default system prompt
-      const defaultConfig = {
-        systemPrompt: FALLBACK_PROMPT
-      };
-      
-      await fs.writeFile(CONFIG_FILE, JSON.stringify(defaultConfig, null, 2), 'utf8');
-      console.log('Created settings.json with default system prompt');
+    const data = await fs.readFile(CONFIG_FILE, 'utf8');
+    const config = JSON.parse(data);
+    if (config.systemPrompt) {
+      DEFAULT_SYSTEM_PROMPT = config.systemPrompt;
+      console.log('Loaded system prompt from settings.json');
     }
   } catch (error) {
-    console.error('Error setting up config file:', error);
+    console.error('Error reading settings.json:', error);
   }
 }
 
-// Ensure config file exists and load default at startup
-ensureConfigFile();
+// Initialize the prompt at startup
+initializePrompt();
 
 // Get the current system prompt
 async function getSystemPrompt() {
@@ -77,8 +40,6 @@ async function getSystemPrompt() {
 // Update the system prompt
 async function updateSystemPrompt(newPrompt) {
   try {
-    await ensureConfigFile();
-    
     // Read existing config
     let config = {};
     try {
