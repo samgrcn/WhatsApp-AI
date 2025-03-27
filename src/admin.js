@@ -477,14 +477,16 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
                 const time = new Date(data.lastMessage.timestamp);
                 const timeStr = time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
                 
-                chatItem.innerHTML = `
-                  <div class="avatar">${getInitial(data.phoneNumber)}</div>
-                  <div class="chat-info">
-                    <div class="chat-name">${formatPhoneNumber(data.phoneNumber)}</div>
-                    <div class="chat-preview">${data.lastMessage.message.substring(0, 40)}${data.lastMessage.message.length > 40 ? '...' : ''}</div>
-                  </div>
-                  <div class="chat-time">${timeStr}</div>
-                `;
+                const preview = data.lastMessage.message.substring(0, 40) + 
+                               (data.lastMessage.message.length > 40 ? '...' : '');
+                
+                chatItem.innerHTML = 
+                  '<div class="avatar">' + getInitial(data.phoneNumber) + '</div>' +
+                  '<div class="chat-info">' +
+                    '<div class="chat-name">' + formatPhoneNumber(data.phoneNumber) + '</div>' +
+                    '<div class="chat-preview">' + preview + '</div>' +
+                  '</div>' +
+                  '<div class="chat-time">' + timeStr + '</div>';
                 
                 chatItem.onclick = function() {
                   document.querySelectorAll('.chat-item').forEach(item => {
@@ -529,10 +531,9 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
                 minute: '2-digit'
               });
               
-              messageDiv.innerHTML = `
-                <div>${msg.message}</div>
-                <div class="message-time">${time}</div>
-              `;
+              messageDiv.innerHTML = 
+                '<div>' + msg.message + '</div>' +
+                '<div class="message-time">' + time + '</div>';
               
               container.appendChild(messageDiv);
             });
