@@ -14,6 +14,86 @@ const client = new Client({
   }
 });
 
+// Message queue to track recent messages from each user
+const messageQueues = new Map();
+
+// Function to generate a random delay between min and max seconds
+function getRandomDelay(min, max) {
+  return Math.floor(Math.random() * (max - min + 1) + min) * 1000;
+}
+
+// Function to check if messages are related
+function areMessagesRelated(messages) {
+  if (messages.length < 2) return true;
+  
+  const greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening'];
+  const firstMsg = messages[0].toLowerCase();
+  const secondMsg = messages[1].toLowerCase();
+  
+  // If first message is a greeting, treat them as related
+  if (greetings.some(greeting => firstMsg.includes(greeting))) {
+    return true;
+  }
+  
+  // If messages are sent within 30 seconds, likely related
+  const timeDiff = messages[1].timestamp - messages[0].timestamp;
+  if (timeDiff < 30000) return true;
+  
+  // If second message starts with conjunction or continuation, likely related
+  const continuationWords = ['and', 'also', 'plus', 'additionally', 'moreover'];
+  if (continuationWords.some(word => secondMsg.startsWith(word))) {
+    return true;
+  }
+  
+  return false;
+}
+
+// Function to process message queue
+async function processMessageQueue(phoneNumber) {
+  const queue = messageQueues.get(phoneNumber);
+  if (!queue || queue.length === 0) return;
+  
+  try {
+    let messagesToProcess = [queue[0]];
+    
+    // Check if we should combine with next message
+    if (queue.length > 1 && areMessagesRelated([queue[0].message, queue[1].message])) {
+      messagesToProcess.push(queue[1]);
+      queue.shift(); // Remove first message since we're combining it
+    }
+    
+    // Combine messages if there are multiple
+    const combinedMessage = messagesToProcess.map(msg => msg.message).join('\n');
+    
+    // Add a human-like delay before responding (10-20 seconds)
+    const delay = getRandomDelay(10, 20);
+    await new Promise(resolve => setTimeout(resolve, delay));
+    
+    // Get AI response
+    const aiResponse = await getAIResponse(combinedMessage, phoneNumber);
+    
+    // Store AI response in database
+    await addMessage(phoneNumber, aiResponse, false);
+    
+    // Send the response
+    const lastMessage = messagesToProcess[messagesToProcess.length - 1].originalMessage;
+    await lastMessage.reply(aiResponse);
+    
+    // Remove processed messages from queue
+    queue.shift();
+    
+    // If there are more messages in queue, process them after a delay (5-10 seconds)
+    if (queue.length > 0) {
+      setTimeout(() => processMessageQueue(phoneNumber), getRandomDelay(5, 10));
+    } else {
+      messageQueues.delete(phoneNumber);
+    }
+  } catch (error) {
+    console.error('Error processing message queue:', error);
+    messageQueues.delete(phoneNumber);
+  }
+}
+
 // Generate QR code for WhatsApp Web
 client.on('qr', (qr) => {
   console.log('Scan the QR code below to log in:');
@@ -36,19 +116,21 @@ client.on('message', async (message) => {
     // Store user message in database
     await addMessage(phoneNumber, message.body, true);
     
-    // Get AI response from DeepSeek
-    const aiResponse = await getAIResponse(message.body, phoneNumber);
+    // Add message to queue
+    if (!messageQueues.has(phoneNumber)) {
+      messageQueues.set(phoneNumber, []);
+      // Start processing queue after a small delay
+      setTimeout(() => processMessageQueue(phoneNumber), 1000);
+    }
     
-    // Store AI response in database
-    await addMessage(phoneNumber, aiResponse, false);
+    messageQueues.get(phoneNumber).push({
+      message: message.body,
+      timestamp: Date.now(),
+      originalMessage: message
+    });
     
-    // Reply with AI response
-    await message.reply(aiResponse);
-    console.log(`Replied to ${phoneNumber} with: ${aiResponse.substring(0, 100)}...`);
   } catch (error) {
-    // Log error but don't send any message
-    console.error('Error processing message:', error);
-    // No reply sent when there's an error
+    console.error('Error handling message:', error);
   }
 });
 
@@ -103,13 +185,12 @@ async function getAIResponse(userMessage, phoneNumber) {
     return response.data.choices[0].message.content;
   } catch (error) {
     console.error('DeepSeek API error:', error.response?.data || error.message);
-    // Don't return any fallback message, instead throw the error so it's caught in the message handler
     throw error;
   }
 }
 
-// Initialize WhatsApp client
-client.initialize();
+// Initialize admin dashboard
+setupAdminDashboard();
 
-// Start admin dashboard
-setupAdminDashboard(); 
+// Initialize WhatsApp client
+client.initialize(); 
