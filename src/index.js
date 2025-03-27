@@ -26,22 +26,32 @@ function getRandomDelay(min, max) {
 function areMessagesRelated(messages) {
   if (messages.length < 2) return true;
   
-  const greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening'];
-  const firstMsg = messages[0].toLowerCase();
-  const secondMsg = messages[1].toLowerCase();
+  const firstMsg = messages[0].message.toLowerCase();
+  const secondMsg = messages[1].message.toLowerCase();
   
-  // If first message is a greeting, treat them as related
-  if (greetings.some(greeting => firstMsg.includes(greeting))) {
+  const greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening'];
+  
+  // If messages were sent at the same minute, treat them as related
+  const firstTime = new Date(messages[0].timestamp);
+  const secondTime = new Date(messages[1].timestamp);
+  if (firstTime.getMinutes() === secondTime.getMinutes()) {
     return true;
   }
   
-  // If messages are sent within 30 seconds, likely related
-  const timeDiff = messages[1].timestamp - messages[0].timestamp;
-  if (timeDiff < 30000) return true;
+  // If first message is a greeting and it's short (less than 5 words), treat them as related
+  if (greetings.some(greeting => firstMsg.includes(greeting)) && firstMsg.split(' ').length < 5) {
+    return true;
+  }
   
-  // If second message starts with conjunction or continuation, likely related
-  const continuationWords = ['and', 'also', 'plus', 'additionally', 'moreover', 'i', 'i\'d', 'i\'m', 'i am'];
-  if (continuationWords.some(word => secondMsg.startsWith(word))) {
+  // If second message starts with personal pronouns or continuations
+  const continuationWords = ['and', 'also', 'plus', 'additionally', 'moreover', 'i', 'i\'d', 'i\'m', 'i am', 'my', 'me'];
+  if (continuationWords.some(word => secondMsg.trim().toLowerCase().startsWith(word))) {
+    return true;
+  }
+  
+  // If messages are sent within 30 seconds
+  const timeDiff = messages[1].timestamp - messages[0].timestamp;
+  if (timeDiff < 30000) {
     return true;
   }
   
@@ -54,12 +64,17 @@ async function processMessageQueue(phoneNumber) {
   if (!queue || queue.length === 0) return;
   
   try {
+    // Try to process as many related messages as possible
     let messagesToProcess = [queue[0]];
+    let i = 1;
     
-    // Check if we should combine with next message
-    if (queue.length > 1 && areMessagesRelated([queue[0], queue[1]])) {
-      messagesToProcess.push(queue[1]);
-      queue.shift(); // Remove first message since we're combining it
+    while (i < queue.length) {
+      if (areMessagesRelated([messagesToProcess[messagesToProcess.length - 1], queue[i]])) {
+        messagesToProcess.push(queue[i]);
+        queue.splice(i, 1); // Remove the message we just added
+      } else {
+        break;
+      }
     }
     
     // Combine messages if there are multiple
@@ -79,7 +94,7 @@ async function processMessageQueue(phoneNumber) {
     const lastMessage = messagesToProcess[messagesToProcess.length - 1].originalMessage;
     await lastMessage.reply(aiResponse);
     
-    // Remove processed messages from queue
+    // Remove the first processed message
     queue.shift();
     
     // If there are more messages in queue, process them after a delay (5-10 seconds)
