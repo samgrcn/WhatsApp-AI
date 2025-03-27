@@ -151,10 +151,78 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
           border: none;
           cursor: pointer;
         }
+        .phone-list {
+          display: flex;
+          flex-wrap: wrap;
+          margin-bottom: 20px;
+        }
+        .phone-item {
+          display: flex;
+          align-items: center;
+          margin: 5px 10px;
+          padding: 8px;
+          border-radius: 5px;
+          cursor: pointer;
+          background-color: #f0f0f0;
+          transition: all 0.2s;
+        }
+        .phone-item:hover {
+          background-color: #e0e0e0;
+        }
+        .phone-item.active {
+          background-color: #e6f7ff;
+          font-weight: bold;
+        }
+        .profile-pic {
+          width: 40px;
+          height: 40px;
+          border-radius: 50%;
+          margin-right: 10px;
+          background-color: #ddd;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          color: #555;
+        }
+        .message-container {
+          max-height: 500px;
+          overflow-y: auto;
+          border: 1px solid #ccc;
+          padding: 15px;
+          margin-top: 10px;
+        }
+        .message {
+          margin: 10px 0;
+          padding: 12px 15px;
+          border-radius: 12px;
+          max-width: 80%;
+          position: relative;
+        }
+        .user-message {
+          background-color: #e6f7ff;
+          margin-left: auto;
+          text-align: right;
+        }
+        .assistant-message {
+          background-color: #f0f0f0;
+        }
+        .message-time {
+          font-size: 0.8em;
+          color: #888;
+          margin-top: 5px;
+        }
+        .search-bar {
+          width: 100%;
+          padding: 10px;
+          margin-bottom: 15px;
+          border-radius: 5px;
+          border: 1px solid #ccc;
+        }
       </style>
     </head>
     <body>
-      <h1>WhatsApp Admin - Debug Mode</h1>
+      <h1>WhatsApp Admin - Dashboard</h1>
       
       <div>
         <span class="button active" id="btn-conversations" onclick="showConversations()">Conversations</span>
@@ -163,7 +231,7 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
       
       <div id="content">
         <div id="conversations-view">
-          <p>Conversations will appear here.</p>
+          <input type="text" class="search-bar" id="search-input" placeholder="Search by phone number..." oninput="filterPhoneNumbers()">
           <div id="phone-list" class="phone-list">Loading phone numbers...</div>
           <div id="conversation-container"></div>
         </div>
@@ -180,19 +248,25 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
 
       <script>
       // Simple functions to test basic functionality
+      document.addEventListener('DOMContentLoaded', function() {
+        // Load conversations immediately when the page loads
+        fetchPhoneNumbers();
+        
+        // Setup search functionality
+        document.getElementById('search-input').addEventListener('input', filterPhoneNumbers);
+      });
+      
       function showConversations() {
-        // alert('Conversations tab clicked');
         document.getElementById('conversations-view').style.display = 'block';
         document.getElementById('settings-view').style.display = 'none';
         document.getElementById('btn-conversations').classList.add('active');
         document.getElementById('btn-settings').classList.remove('active');
         
-        // Load conversations when switching to this tab
+        // Refresh conversations
         fetchPhoneNumbers();
       }
       
       function showSettings() {
-        // alert('Settings tab clicked');
         document.getElementById('conversations-view').style.display = 'none';
         document.getElementById('settings-view').style.display = 'block';
         document.getElementById('btn-conversations').classList.remove('active');
@@ -209,6 +283,32 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
           });
       }
       
+      // Filter phone numbers based on search input
+      function filterPhoneNumbers() {
+        const searchText = document.getElementById('search-input').value.toLowerCase();
+        const phoneItems = document.querySelectorAll('.phone-item');
+        
+        phoneItems.forEach(item => {
+          const phoneNumber = item.getAttribute('data-phone');
+          if (phoneNumber.toLowerCase().includes(searchText)) {
+            item.style.display = 'flex';
+          } else {
+            item.style.display = 'none';
+          }
+        });
+      }
+      
+      // Format phone number to display format (remove @c.us)
+      function formatPhoneNumber(phoneNumber) {
+        return '+' + phoneNumber.replace('@c.us', '');
+      }
+      
+      // Get first letter of phone number for avatar placeholder
+      function getInitial(phoneNumber) {
+        const formattedNumber = formatPhoneNumber(phoneNumber);
+        return formattedNumber.charAt(1); // Skip the '+' and get first digit
+      }
+      
       // Fetch all messages and extract unique phone numbers
       function fetchPhoneNumbers() {
         fetch('/api/messages')
@@ -216,30 +316,73 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
           .then(messages => {
             console.log('Fetched messages:', messages.length);
             
-            // Get unique phone numbers
-            const phoneNumbers = [...new Set(messages.map(msg => msg.phoneNumber))];
-            console.log('Unique phone numbers:', phoneNumbers);
+            // Group messages by phone number
+            const phoneGroups = {};
+            messages.forEach(msg => {
+              if (!phoneGroups[msg.phoneNumber]) {
+                phoneGroups[msg.phoneNumber] = [];
+              }
+              phoneGroups[msg.phoneNumber].push(msg);
+            });
+            
+            // Get unique phone numbers with their latest message timestamp
+            const phoneData = Object.keys(phoneGroups).map(phone => {
+              const latestMsg = phoneGroups[phone].sort((a, b) => 
+                new Date(b.timestamp) - new Date(a.timestamp)
+              )[0];
+              
+              return {
+                phoneNumber: phone,
+                latestTimestamp: new Date(latestMsg.timestamp),
+                messageCount: phoneGroups[phone].length
+              };
+            });
+            
+            // Sort by most recent message timestamp
+            phoneData.sort((a, b) => b.latestTimestamp - a.latestTimestamp);
             
             // Display phone number list
             const phoneListEl = document.getElementById('phone-list');
-            if (phoneNumbers.length > 0) {
-              phoneListEl.innerHTML = '<strong>Select a conversation:</strong> ';
+            if (phoneData.length > 0) {
+              phoneListEl.innerHTML = '';
               
-              phoneNumbers.forEach(phone => {
-                const phoneEl = document.createElement('span');
-                phoneEl.className = 'phone-number';
-                phoneEl.textContent = phone;
-                phoneEl.style.margin = '0 10px';
-                phoneEl.style.padding = '5px';
-                phoneEl.style.cursor = 'pointer';
-                phoneEl.style.backgroundColor = '#f0f0f0';
-                phoneEl.style.borderRadius = '3px';
-                phoneEl.onclick = function() { loadConversation(phone); };
+              phoneData.forEach(data => {
+                const phoneEl = document.createElement('div');
+                phoneEl.className = 'phone-item';
+                phoneEl.setAttribute('data-phone', data.phoneNumber);
+                
+                // Create avatar placeholder
+                const avatar = document.createElement('div');
+                avatar.className = 'profile-pic';
+                avatar.textContent = getInitial(data.phoneNumber);
+                
+                // Create phone number text
+                const phoneText = document.createElement('span');
+                phoneText.textContent = formatPhoneNumber(data.phoneNumber);
+                
+                phoneEl.appendChild(avatar);
+                phoneEl.appendChild(phoneText);
+                
+                phoneEl.onclick = function() { 
+                  // Deactivate all phone items
+                  document.querySelectorAll('.phone-item').forEach(item => {
+                    item.classList.remove('active');
+                  });
+                  
+                  // Activate this phone item
+                  phoneEl.classList.add('active');
+                  
+                  loadConversation(data.phoneNumber); 
+                };
+                
                 phoneListEl.appendChild(phoneEl);
               });
               
               // Load first conversation
-              loadConversation(phoneNumbers[0]);
+              if (phoneData.length > 0) {
+                document.querySelector('.phone-item').classList.add('active');
+                loadConversation(phoneData[0].phoneNumber);
+              }
             } else {
               phoneListEl.innerHTML = '<p>No conversations available yet.</p>';
             }
@@ -255,55 +398,33 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
       function loadConversation(phoneNumber) {
         console.log('Loading conversation for:', phoneNumber);
         
-        // Update active phone number highlighting
-        document.querySelectorAll('.phone-number').forEach(el => {
-          if (el.textContent === phoneNumber) {
-            el.style.fontWeight = 'bold';
-            el.style.backgroundColor = '#e6f7ff';
-          } else {
-            el.style.fontWeight = 'normal';
-            el.style.backgroundColor = '#f0f0f0';
-          }
-        });
-        
         fetch('/api/messages/' + encodeURIComponent(phoneNumber))
           .then(response => response.json())
           .then(messages => {
             console.log('Fetched messages for conversation:', messages.length);
             
             const container = document.getElementById('conversation-container');
-            container.innerHTML = '<h3>Conversation with ' + phoneNumber + '</h3>';
+            container.innerHTML = '<h3>Conversation with ' + formatPhoneNumber(phoneNumber) + '</h3>';
             
             const chatDiv = document.createElement('div');
-            chatDiv.style.maxHeight = '400px';
-            chatDiv.style.overflowY = 'auto';
-            chatDiv.style.border = '1px solid #ccc';
-            chatDiv.style.padding = '10px';
-            chatDiv.style.marginTop = '10px';
+            chatDiv.className = 'message-container';
             
             messages.forEach(msg => {
               const msgDiv = document.createElement('div');
-              msgDiv.style.margin = '10px 0';
-              msgDiv.style.padding = '8px 15px';
-              msgDiv.style.borderRadius = '10px';
-              msgDiv.style.maxWidth = '80%';
-              
-              if (msg.isFromUser) {
-                msgDiv.style.marginLeft = 'auto';
-                msgDiv.style.backgroundColor = '#e6f7ff';
-                msgDiv.style.textAlign = 'right';
-              } else {
-                msgDiv.style.backgroundColor = '#f0f0f0';
-              }
+              msgDiv.className = 'message ' + (msg.isFromUser ? 'user-message' : 'assistant-message');
               
               const time = new Date(msg.timestamp).toLocaleString();
+              
               msgDiv.innerHTML = '<div>' + msg.message + '</div>' +
-                               '<small style="color:#888">' + time + '</small>';
+                               '<div class="message-time">' + time + '</div>';
               
               chatDiv.appendChild(msgDiv);
             });
             
             container.appendChild(chatDiv);
+            
+            // Scroll to the bottom of the conversation
+            chatDiv.scrollTop = chatDiv.scrollHeight;
           })
           .catch(error => {
             console.error('Error loading conversation:', error);
@@ -314,7 +435,6 @@ function setupAdminDashboard(port = process.env.PORT || 3000) {
       
       function savePromptSimple() {
         const promptText = document.getElementById('prompt-area').value;
-        alert('About to save prompt: ' + promptText.substring(0, 20) + '...');
         
         fetch('/api/prompt', {
           method: 'POST',
