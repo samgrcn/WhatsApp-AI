@@ -40,7 +40,7 @@ function areMessagesRelated(messages) {
   if (timeDiff < 30000) return true;
   
   // If second message starts with conjunction or continuation, likely related
-  const continuationWords = ['and', 'also', 'plus', 'additionally', 'moreover'];
+  const continuationWords = ['and', 'also', 'plus', 'additionally', 'moreover', 'i', 'i\'d', 'i\'m', 'i am'];
   if (continuationWords.some(word => secondMsg.startsWith(word))) {
     return true;
   }
@@ -57,7 +57,7 @@ async function processMessageQueue(phoneNumber) {
     let messagesToProcess = [queue[0]];
     
     // Check if we should combine with next message
-    if (queue.length > 1 && areMessagesRelated([queue[0].message, queue[1].message])) {
+    if (queue.length > 1 && areMessagesRelated([queue[0], queue[1]])) {
       messagesToProcess.push(queue[1]);
       queue.shift(); // Remove first message since we're combining it
     }
