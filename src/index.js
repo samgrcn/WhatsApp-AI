@@ -14,80 +14,22 @@ const client = new Client({
   }
 });
 
-// Message queue to track recent messages from each user
-const messageQueues = new Map();
+// Store pending messages for each user
+const pendingMessages = new Map();
 
 // Function to generate a random delay between min and max seconds
 function getRandomDelay(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min) * 1000;
 }
 
-// Function to check if messages are related
-function areMessagesRelated(messages) {
-  if (messages.length < 2) return true;
-  
-  const firstMsg = messages[0].message.toLowerCase();
-  const secondMsg = messages[1].message.toLowerCase();
-  
-  const greetings = ['hi', 'hello', 'hey', 'good morning', 'good afternoon', 'good evening'];
-  
-  // If messages were sent at the same minute, treat them as related
-  const firstTime = new Date(messages[0].timestamp);
-  const secondTime = new Date(messages[1].timestamp);
-  if (firstTime.getMinutes() === secondTime.getMinutes()) {
-    return true;
-  }
-  
-  // If first message is a greeting and it's short (less than 5 words), treat them as related
-  if (greetings.some(greeting => firstMsg.includes(greeting)) && firstMsg.split(' ').length < 5) {
-    return true;
-  }
-  
-  // Appointment confirmation pattern detection: "yes please" followed by time/date
-  if (firstMsg.includes('yes') && 
-     (secondMsg.includes('am') || secondMsg.includes('pm') || 
-      secondMsg.includes('morning') || secondMsg.includes('afternoon') || 
-      secondMsg.includes('evening') || secondMsg.match(/\d+(:\d+)?/) ||
-      ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
-       'tomorrow', 'tonight', 'today'].some(day => secondMsg.includes(day)))) {
-    return true;
-  }
-  
-  // If second message starts with personal pronouns or continuations
-  const continuationWords = ['and', 'also', 'plus', 'additionally', 'moreover', 'i', 'i\'d', 'i\'m', 'i am', 'my', 'me'];
-  if (continuationWords.some(word => secondMsg.trim().toLowerCase().startsWith(word))) {
-    return true;
-  }
-  
-  // If messages are sent within 30 seconds
-  const timeDiff = secondTime - firstTime;
-  if (timeDiff < 30000) {
-    return true;
-  }
-  
-  return false;
-}
-
-// Function to process message queue
-async function processMessageQueue(phoneNumber) {
-  const queue = messageQueues.get(phoneNumber);
-  if (!queue || queue.length === 0) return;
+// Function to process messages after the 30-second window
+async function processMessages(phoneNumber) {
+  const messages = pendingMessages.get(phoneNumber);
+  if (!messages || messages.length === 0) return;
   
   try {
-    // Try to process as many related messages as possible
-    let messagesToProcess = [queue[0]];
-    
-    // Start at index 1 and collect all related messages
-    for (let i = 1; i < queue.length; i++) {
-      if (areMessagesRelated([messagesToProcess[messagesToProcess.length - 1], queue[i]])) {
-        messagesToProcess.push(queue[i]);
-      } else {
-        break;
-      }
-    }
-    
-    // Combine messages if there are multiple
-    const combinedMessage = messagesToProcess.map(msg => msg.message).join('\n');
+    // Combine all messages
+    const combinedMessage = messages.map(msg => msg.message).join('\n');
     
     // Add a human-like delay before responding (10-20 seconds)
     const delay = getRandomDelay(10, 20);
@@ -99,22 +41,14 @@ async function processMessageQueue(phoneNumber) {
     // Store AI response in database
     await addMessage(phoneNumber, aiResponse, false);
     
-    // Send the response - use only the last message as reference for reply
-    const lastMessage = messagesToProcess[messagesToProcess.length - 1].originalMessage;
-    await lastMessage.reply(aiResponse);
+    // Send the response without reply
+    await messages[messages.length - 1].originalMessage.getChat().sendMessage(aiResponse);
     
-    // Remove all processed messages from the queue
-    queue.splice(0, messagesToProcess.length);
-    
-    // If there are more messages in queue, process them after a delay (5-10 seconds)
-    if (queue.length > 0) {
-      setTimeout(() => processMessageQueue(phoneNumber), getRandomDelay(5, 10));
-    } else {
-      messageQueues.delete(phoneNumber);
-    }
+    // Clear pending messages
+    pendingMessages.delete(phoneNumber);
   } catch (error) {
-    console.error('Error processing message queue:', error);
-    messageQueues.delete(phoneNumber);
+    console.error('Error processing messages:', error);
+    pendingMessages.delete(phoneNumber);
   }
 }
 
@@ -140,14 +74,14 @@ client.on('message', async (message) => {
     // Store user message in database
     await addMessage(phoneNumber, message.body, true);
     
-    // Add message to queue
-    if (!messageQueues.has(phoneNumber)) {
-      messageQueues.set(phoneNumber, []);
-      // Start processing queue after a small delay
-      setTimeout(() => processMessageQueue(phoneNumber), 1000);
+    // Add message to pending messages
+    if (!pendingMessages.has(phoneNumber)) {
+      pendingMessages.set(phoneNumber, []);
+      // Set timeout to process messages after 30 seconds
+      setTimeout(() => processMessages(phoneNumber), 30000);
     }
     
-    messageQueues.get(phoneNumber).push({
+    pendingMessages.get(phoneNumber).push({
       message: message.body,
       timestamp: Date.now(),
       originalMessage: message
