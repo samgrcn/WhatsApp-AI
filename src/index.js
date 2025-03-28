@@ -43,6 +43,16 @@ function areMessagesRelated(messages) {
     return true;
   }
   
+  // Appointment confirmation pattern detection: "yes please" followed by time/date
+  if (firstMsg.includes('yes') && 
+     (secondMsg.includes('am') || secondMsg.includes('pm') || 
+      secondMsg.includes('morning') || secondMsg.includes('afternoon') || 
+      secondMsg.includes('evening') || secondMsg.match(/\d+(:\d+)?/) ||
+      ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday',
+       'tomorrow', 'tonight', 'today'].some(day => secondMsg.includes(day)))) {
+    return true;
+  }
+  
   // If second message starts with personal pronouns or continuations
   const continuationWords = ['and', 'also', 'plus', 'additionally', 'moreover', 'i', 'i\'d', 'i\'m', 'i am', 'my', 'me'];
   if (continuationWords.some(word => secondMsg.trim().toLowerCase().startsWith(word))) {
@@ -50,7 +60,7 @@ function areMessagesRelated(messages) {
   }
   
   // If messages are sent within 30 seconds
-  const timeDiff = messages[1].timestamp - messages[0].timestamp;
+  const timeDiff = secondTime - firstTime;
   if (timeDiff < 30000) {
     return true;
   }
@@ -66,12 +76,11 @@ async function processMessageQueue(phoneNumber) {
   try {
     // Try to process as many related messages as possible
     let messagesToProcess = [queue[0]];
-    let i = 1;
     
-    while (i < queue.length) {
+    // Start at index 1 and collect all related messages
+    for (let i = 1; i < queue.length; i++) {
       if (areMessagesRelated([messagesToProcess[messagesToProcess.length - 1], queue[i]])) {
         messagesToProcess.push(queue[i]);
-        queue.splice(i, 1); // Remove the message we just added
       } else {
         break;
       }
@@ -90,12 +99,12 @@ async function processMessageQueue(phoneNumber) {
     // Store AI response in database
     await addMessage(phoneNumber, aiResponse, false);
     
-    // Send the response
+    // Send the response - use only the last message as reference for reply
     const lastMessage = messagesToProcess[messagesToProcess.length - 1].originalMessage;
     await lastMessage.reply(aiResponse);
     
-    // Remove the first processed message
-    queue.shift();
+    // Remove all processed messages from the queue
+    queue.splice(0, messagesToProcess.length);
     
     // If there are more messages in queue, process them after a delay (5-10 seconds)
     if (queue.length > 0) {

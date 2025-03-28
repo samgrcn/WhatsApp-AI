@@ -29,11 +29,54 @@ echo "[]" > data/messages.json
 echo "Please enter your DeepSeek API key:"
 read deepseek_api_key
 
+# Prompt for admin credentials
+echo "Please enter admin username (default: admin):"
+read admin_username
+admin_username=${admin_username:-admin}
+
+echo "Please enter admin password (default: admin123):"
+read -s admin_password
+admin_password=${admin_password:-admin123}
+echo
+
+# Create a temporary Node.js script to hash the password
+echo "Creating admin credentials..."
+cat > temp-hash-password.js << EOF
+const bcrypt = require('bcryptjs');
+const fs = require('fs');
+
+const username = '$admin_username';
+const password = '$admin_password';
+
+// Hash the password (10 rounds of salt)
+bcrypt.hash(password, 10, (err, hash) => {
+  if (err) {
+    console.error('Error hashing password:', err);
+    process.exit(1);
+  }
+  
+  // Create the admin.json file
+  const adminData = {
+    username: username,
+    password: hash
+  };
+  
+  fs.writeFileSync('./data/admin.json', JSON.stringify(adminData, null, 2), 'utf8');
+  console.log('Admin credentials created successfully');
+  
+  // Clean up the temporary script
+  fs.unlinkSync('./temp-hash-password.js');
+});
+EOF
+
+# Execute the temporary script with Node.js
+node temp-hash-password.js
+
 # Create .env file with the API key
 echo "DEEPSEEK_API_KEY=$deepseek_api_key" > .env
 
 # Start the application
-echo "Starting the application..."
+echo "Setup completed successfully. Starting the application..."
 npm start
 
 # Keep the terminal open if there is an error
