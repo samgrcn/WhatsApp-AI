@@ -42,7 +42,7 @@ async function processMessages(phoneNumber) {
     await addMessage(phoneNumber, aiResponse, false);
     
     // Send the response without reply
-    await messages[messages.length - 1].originalMessage.getChat().sendMessage(aiResponse);
+    await client.sendMessage(phoneNumber, aiResponse);
     
     // Clear pending messages
     pendingMessages.delete(phoneNumber);
