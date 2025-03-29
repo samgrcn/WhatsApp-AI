@@ -148,7 +148,7 @@ async function getAIResponse(userMessage, phoneNumber) {
 }
 
 // Initialize admin dashboard
-setupAdminDashboard();
+setupAdminDashboard(3001);
 
 // Initialize WhatsApp client
 client.initialize(); 
