@@ -46,32 +46,72 @@ async function saveMessages(messages) {
   }
 }
 
-// Add a new message to the database
-async function addMessage(phoneNumber, message, isFromUser, timestamp = new Date()) {
-  const messages = await loadMessages();
+// Initialize messages file if it doesn't exist
+async function initializeMessagesFile() {
+  try {
+    await fs.access(MESSAGES_FILE);
+  } catch {
+    await fs.mkdir(path.dirname(MESSAGES_FILE), { recursive: true });
+    await fs.writeFile(MESSAGES_FILE, '[]');
+  }
+}
+
+// Add a message to the database
+async function addMessage(phoneNumber, message, isFromUser) {
+  await initializeMessagesFile();
   
+  const messages = JSON.parse(await fs.readFile(MESSAGES_FILE, 'utf8'));
   messages.push({
     phoneNumber,
     message,
     isFromUser,
-    timestamp: timestamp.toISOString()
+    timestamp: new Date().toISOString()
   });
   
-  await saveMessages(messages);
+  await fs.writeFile(MESSAGES_FILE, JSON.stringify(messages, null, 2));
 }
 
-// Get conversation history for a specific phone number
+// Get conversation history for a phone number
 async function getConversationHistory(phoneNumber, limit = 10) {
-  const messages = await loadMessages();
+  await initializeMessagesFile();
   
+  const messages = JSON.parse(await fs.readFile(MESSAGES_FILE, 'utf8'));
   return messages
     .filter(msg => msg.phoneNumber === phoneNumber)
     .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-    .slice(0, limit)
-    .reverse();
+    .slice(0, limit);
+}
+
+// Get all conversations with their latest messages
+async function getAllConversations() {
+  await initializeMessagesFile();
+  
+  const messages = JSON.parse(await fs.readFile(MESSAGES_FILE, 'utf8'));
+  const conversations = {};
+  
+  messages.forEach(msg => {
+    if (!conversations[msg.phoneNumber] || 
+        new Date(msg.timestamp) > new Date(conversations[msg.phoneNumber].timestamp)) {
+      conversations[msg.phoneNumber] = {
+        phoneNumber: msg.phoneNumber,
+        lastMessage: msg.message,
+        timestamp: msg.timestamp,
+        messages: []
+      };
+    }
+    conversations[msg.phoneNumber].messages.push(msg);
+  });
+  
+  // Sort messages within each conversation
+  Object.values(conversations).forEach(conv => {
+    conv.messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+  });
+  
+  return Object.values(conversations);
 }
 
 module.exports = {
   addMessage,
-  getConversationHistory
+  getConversationHistory,
+  getAllConversations
 }; 

@@ -3,8 +3,28 @@ const { Client, LocalAuth } = require('whatsapp-web.js');
 const qrcode = require('qrcode-terminal');
 const axios = require('axios');
 const { addMessage, getConversationHistory } = require('./messageDb');
-const { setupAdminDashboard } = require('./admin');
+const { setupAdminRoutes } = require('./admin');
 const { getSystemPrompt } = require('./config');
+const express = require('express');
+const cors = require('cors');
+const path = require('path');
+const fs = require('fs');
+const session = require('express-session');
+const bcrypt = require('bcrypt');
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
+// Session configuration
+app.use(session({
+  secret: 'your-secret-key',
+  resave: false,
+  saveUninitialized: false,
+  cookie: { secure: false } // Set to true if using HTTPS
+}));
 
 // Initialize WhatsApp client
 const client = new Client({
@@ -147,8 +167,19 @@ async function getAIResponse(userMessage, phoneNumber) {
   }
 }
 
-// Initialize admin dashboard
-setupAdminDashboard(3001);
+// Setup admin routes
+setupAdminRoutes(app);
+
+// Serve frontend for all other routes
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+});
+
+// Start the server
+const PORT = process.env.PORT || 3001;
+app.listen(PORT, () => {
+  console.log(`Server is running on port ${PORT}`);
+});
 
 // Initialize WhatsApp client
 client.initialize(); 

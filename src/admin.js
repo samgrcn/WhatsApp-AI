@@ -10,8 +10,8 @@ const MESSAGES_FILE = path.join(DATA_DIR, 'messages.json');
 const ADMIN_FILE = path.join(DATA_DIR, 'admin.json');
 
 // Import the message functions and config functions
-const { addMessage, getConversationHistory } = require('./messageDb');
-const { getSystemPrompt, updateSystemPrompt, DEFAULT_SYSTEM_PROMPT } = require('./config');
+const { addMessage, getConversationHistory, getAllConversations } = require('./messageDb');
+const { getSystemPrompt, updateSystemPrompt, DEFAULT_SYSTEM_PROMPT, setSystemPrompt } = require('./config');
 
 // Initialize data directory and file at startup
 async function initializeDataStructure() {
@@ -55,35 +55,26 @@ async function requireAuth(req, res, next) {
   res.redirect('/login');
 }
 
-function setupAdminDashboard(port = process.env.PORT || 3001) {
-  const app = express();
-  
-  // Initialize data structures immediately
-  initializeDataStructure();
-  
-  // Set up middleware
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: true }));
-  app.use(session({
-    secret: process.env.SESSION_SECRET || 'your-secret-key',
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: process.env.NODE_ENV === 'production',
-      httpOnly: true,
-      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+function setupAdminRoutes(app) {
+  // Authentication middleware
+  const requireAuth = (req, res, next) => {
+    if (req.session.isAuthenticated) {
+      next();
+    } else {
+      res.status(401).json({ error: 'Unauthorized' });
     }
-  }));
-  
-  // API routes
+  };
+
+  // Login endpoint
   app.post('/api/login', async (req, res) => {
+    const { username, password } = req.body;
     try {
-      const { username, password } = req.body;
-      const adminData = JSON.parse(await fs.readFile(ADMIN_FILE, 'utf8'));
+      // Read admin credentials from file
+      const adminCredentials = JSON.parse(await fs.readFile(ADMIN_FILE, 'utf8'));
+      const match = await bcrypt.compare(password, adminCredentials.password);
       
-      if (username === adminData.username && await bcrypt.compare(password, adminData.password)) {
-        req.session.authenticated = true;
-        req.session.username = username;
+      if (username === adminCredentials.username && match) {
+        req.session.isAuthenticated = true;
         res.json({ success: true });
       } else {
         res.status(401).json({ error: 'Invalid credentials' });
@@ -93,86 +84,57 @@ function setupAdminDashboard(port = process.env.PORT || 3001) {
       res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
+  // Logout endpoint
+  app.post('/api/logout', (req, res) => {
+    req.session.destroy();
+    res.json({ success: true });
+  });
+
+  // Get all conversations
   app.get('/api/messages', requireAuth, async (req, res) => {
     try {
-      const data = await fs.readFile(MESSAGES_FILE, 'utf8');
-      const messages = JSON.parse(data);
-      
-      // Group messages by phone number and get the latest message for each
-      const conversations = {};
-      messages.forEach(msg => {
-        if (!conversations[msg.phoneNumber]) {
-          conversations[msg.phoneNumber] = {
-            phoneNumber: msg.phoneNumber,
-            lastMessage: msg.message,
-            timestamp: msg.timestamp
-          };
-        } else if (new Date(msg.timestamp) > new Date(conversations[msg.phoneNumber].timestamp)) {
-          conversations[msg.phoneNumber].lastMessage = msg.message;
-          conversations[msg.phoneNumber].timestamp = msg.timestamp;
-        }
-      });
-      
-      res.json(Object.values(conversations));
+      const conversations = await getAllConversations();
+      res.json(conversations);
     } catch (error) {
-      console.error('Error reading messages:', error);
-      res.status(500).json({ error: 'Failed to read messages' });
+      console.error('Error fetching conversations:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
+  // Get conversation history for a specific phone number
   app.get('/api/messages/:phoneNumber', requireAuth, async (req, res) => {
     try {
-      const data = await fs.readFile(MESSAGES_FILE, 'utf8');
-      const messages = JSON.parse(data);
-      
-      const phoneNumber = req.params.phoneNumber;
-      const phoneMessages = messages
-        .filter(msg => msg.phoneNumber === phoneNumber)
-        .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-      
-      res.json(phoneMessages);
+      const history = await getConversationHistory(req.params.phoneNumber);
+      res.json(history);
     } catch (error) {
-      console.error('Error reading messages:', error);
-      res.status(500).json({ error: 'Failed to read messages' });
+      console.error('Error fetching conversation history:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
+  // Get current AI prompt
   app.get('/api/prompt', requireAuth, async (req, res) => {
     try {
       const prompt = await getSystemPrompt();
       res.json({ prompt });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to read prompt' });
+      console.error('Error fetching prompt:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
   });
-  
+
+  // Update AI prompt
   app.post('/api/prompt', requireAuth, async (req, res) => {
     try {
       const { prompt } = req.body;
-      await updateSystemPrompt(prompt);
+      await setSystemPrompt(prompt);
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed to update prompt' });
+      console.error('Error updating prompt:', error);
+      res.status(500).json({ error: 'Internal server error' });
     }
-  });
-  
-  // Serve static files from the React app in production
-  if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.join(__dirname, '..', 'frontend', 'dist')));
-    
-    // Handle React Router by serving index.html for all non-API routes
-    app.get('*', (req, res) => {
-      if (!req.path.startsWith('/api/')) {
-        res.sendFile(path.join(__dirname, '..', 'frontend', 'dist', 'index.html'));
-      }
-    });
-  }
-  
-  // Start server
-  app.listen(port, () => {
-    console.log(`Admin dashboard running at http://localhost:${port}`);
   });
 }
 
-module.exports = { setupAdminDashboard }; 
+module.exports = { setupAdminRoutes }; 
